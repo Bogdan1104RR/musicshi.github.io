@@ -390,19 +390,33 @@ const solvedValueEl = document.getElementById("solvedValue");
 const accuracyValueEl = document.getElementById("accuracyValue");
 const scoreMetaEl = document.getElementById("scoreMeta");
 
-const intervalSemitones = {
-  "4+": 6,
-  "5-": 6,
-  "3M": 4,
-  "3m": 3,
-  "6M": 9,
-  "6m": 8
-};
-
 const intervalQuestionOptions = ["4+", "5-"];
 const intervalResolutionMap = {
   "4+": ["6m", "6M"],
   "5-": ["3m", "3M"]
+};
+
+const intervalVoicings = {
+  "4+": {
+    "6m": {
+      intervalOffsets: [5, 11],
+      resolutionOffsets: [4, 12]
+    },
+    "6M": {
+      intervalOffsets: [5, 11],
+      resolutionOffsets: [3, 12]
+    }
+  },
+  "5-": {
+    "3M": {
+      intervalOffsets: [11, 17],
+      resolutionOffsets: [12, 16]
+    },
+    "3m": {
+      intervalOffsets: [11, 17],
+      resolutionOffsets: [12, 15]
+    }
+  }
 };
 
 const scales = {
@@ -419,7 +433,14 @@ const scales = {
   hypophrygic: [0, 1, 4, 5, 6, 9, 11, 12]
 };
 
-const dominantSeventhShapes = {
+const majorDominantSeventhShapes = {
+  D7: [7, 11, 14, 17],
+  D65: [11, 14, 17, 19],
+  D43: [2, 5, 7, 11],
+  D2: [5, 7, 11, 14]
+};
+
+const harmonicMinorDominantSeventhShapes = {
   D7: [7, 11, 14, 17],
   D65: [11, 14, 17, 19],
   D43: [2, 5, 7, 11],
@@ -431,6 +452,39 @@ const tonicResolutions = {
   t: [0, 3, 7],
   T6: [4, 7, 12],
   t6: [3, 7, 12]
+};
+
+const chordResolutionVoicings = {
+  D7: {
+    T: [0, 12, 16, 24],
+    t: [0, 12, 15, 24]
+  },
+  D65: {
+    T: [0, 4, 7, 12],
+    t: [0, 3, 7, 12]
+  },
+  D43: {
+    T: [0, 4, 7, 12],
+    t: [0, 3, 7, 12]
+  },
+  D2: {
+    T6: [4, 7, 12, 16],
+    t6: [3, 7, 12, 15]
+  }
+};
+
+const chordScaleContextMap = {
+  T: "major",
+  T6: "major",
+  t: "harmonic minor",
+  t6: "harmonic minor"
+};
+
+const chordResolutionMap = {
+  D7: ["T", "t"],
+  D65: ["T", "t"],
+  D43: ["T", "t"],
+  D2: ["T6", "t6"]
 };
 
 const tonicRoots = [48, 50, 52, 53, 55, 57, 59, 60];
@@ -630,9 +684,79 @@ function updateLevelStatus() {
   }
 }
 
-function playNotes(notes, start, duration = 1) {
-  notes.forEach((midi) => {
-    piano.triggerAttackRelease(midiToNote(midi), duration, start);
+function playNotes(notes, start, duration = 1, options = {}) {
+  const {
+    baseVelocity = 0.9,
+    emphasizeRepeatedPitchClasses = false,
+    spread = 0
+  } = options;
+
+  const pitchClassCounts = emphasizeRepeatedPitchClasses
+    ? notes.reduce((counts, note) => {
+        const pitchClass = ((note % 12) + 12) % 12;
+        counts[pitchClass] = (counts[pitchClass] || 0) + 1;
+        return counts;
+      }, {})
+    : {};
+
+  notes.forEach((midi, index) => {
+    const pitchClass = ((midi % 12) + 12) % 12;
+    const count = pitchClassCounts[pitchClass] || 1;
+    const velocityBoost = emphasizeRepeatedPitchClasses ? (count - 1) * 0.08 : 0;
+    const velocity = Math.min(1, baseVelocity + velocityBoost);
+
+    piano.triggerAttackRelease(midiToNote(midi), duration, start + index * spread, velocity);
+  });
+}
+
+function getAveragePitch(notes) {
+  return notes.reduce((sum, note) => sum + note, 0) / notes.length;
+}
+
+function alignNotesToReferenceRegister(notes, referenceNotes) {
+  const referenceTop = Math.max(...referenceNotes);
+  const referenceAverage = getAveragePitch(referenceNotes);
+  const shifts = [-12, 0, 12];
+
+  return shifts
+    .map((shift) => {
+      const shiftedNotes = notes.map((note) => note + shift);
+      const topDistance = Math.abs(Math.max(...shiftedNotes) - referenceTop);
+      const averageDistance = Math.abs(getAveragePitch(shiftedNotes) - referenceAverage);
+
+      return {
+        shiftedNotes,
+        score: topDistance * 2 + averageDistance
+      };
+    })
+    .sort((a, b) => a.score - b.score)[0].shiftedNotes;
+}
+
+function getDominantNotesForResolution(root, dominantType, resolutionType) {
+  const scaleContext = chordScaleContextMap[resolutionType];
+  const dominantShapes =
+    scaleContext === "harmonic minor"
+      ? harmonicMinorDominantSeventhShapes
+      : majorDominantSeventhShapes;
+
+  return dominantShapes[dominantType].map((offset) => root + offset);
+}
+
+function getResolutionNotesForDominant(root, dominantType, resolutionType) {
+  const voicing = chordResolutionVoicings[dominantType][resolutionType];
+  return voicing.map((offset) => root + offset);
+}
+
+function getRepeatedResolutionNotes(notes) {
+  const pitchClassCounts = notes.reduce((counts, note) => {
+    const pitchClass = ((note % 12) + 12) % 12;
+    counts[pitchClass] = (counts[pitchClass] || 0) + 1;
+    return counts;
+  }, {});
+
+  return notes.filter((note) => {
+    const pitchClass = ((note % 12) + 12) % 12;
+    return pitchClassCounts[pitchClass] > 1;
   });
 }
 
@@ -660,9 +784,12 @@ function playIntervalSequence(root, intervalType, resolutionType) {
   const profile = getPlaybackProfile();
   const start = Tone.now() + 0.05;
   const resolutionStart = start + profile.noteDuration + profile.phraseGap;
+  const voicing = intervalVoicings[intervalType][resolutionType];
+  const intervalNotes = voicing.intervalOffsets.map((offset) => root + offset);
+  const resolutionNotes = voicing.resolutionOffsets.map((offset) => root + offset);
 
-  playNotes([root, root + intervalSemitones[intervalType]], start, profile.noteDuration);
-  playNotes([root, root + intervalSemitones[resolutionType]], resolutionStart, profile.noteDuration);
+  playNotes(intervalNotes, start, profile.noteDuration);
+  playNotes(resolutionNotes, resolutionStart, profile.noteDuration);
 
   return resolutionStart + profile.noteDuration - Tone.now();
 }
@@ -671,11 +798,30 @@ function playDominantResolution(root, dominantType, resolutionType) {
   const profile = getPlaybackProfile();
   const start = Tone.now() + 0.05;
   const resolutionStart = start + profile.chordDuration + profile.chordGap;
+  const dominantNotes = getDominantNotesForResolution(root, dominantType, resolutionType);
+  const resolutionDuration = profile.chordDuration * 1.12;
+  const resolutionNotes = alignNotesToReferenceRegister(
+    getResolutionNotesForDominant(root, dominantType, resolutionType),
+    dominantNotes
+  );
+  const repeatedResolutionNotes = getRepeatedResolutionNotes(resolutionNotes);
+  const repeatedNotesStart = resolutionStart + resolutionDuration + Math.max(profile.phraseGap * 0.4, 0.14);
+  const repeatedNoteDuration = Math.max(profile.noteDuration * 0.82, 0.34);
+  const repeatedNoteGap = Math.max(profile.scaleGap * 0.85, 0.16);
 
-  playNotes(dominantSeventhShapes[dominantType].map((offset) => root + offset), start, profile.chordDuration);
-  playNotes(tonicResolutions[resolutionType].map((offset) => root + offset), resolutionStart, profile.chordDuration);
+  playNotes(dominantNotes, start, profile.chordDuration, {
+    baseVelocity: 0.84
+  });
+  playNotes(resolutionNotes, resolutionStart, resolutionDuration, {
+    baseVelocity: 0.9
+  });
 
-  return resolutionStart + profile.chordDuration - Tone.now();
+  playNotes(repeatedResolutionNotes, repeatedNotesStart, repeatedNoteDuration, {
+    baseVelocity: 0.98,
+    spread: repeatedNoteGap
+  });
+
+  return repeatedNotesStart + repeatedNoteDuration + repeatedNoteGap * Math.max(repeatedResolutionNotes.length - 1, 0) - Tone.now();
 }
 
 async function ensureAudioReady() {
@@ -731,16 +877,16 @@ function newQuestion() {
   } else if (roll < 0.66) {
     mode = "chord";
 
-    const dominantOptions = Object.keys(dominantSeventhShapes);
+    const dominantOptions = Object.keys(majorDominantSeventhShapes);
     const dominantType = pick(dominantOptions);
-    const resolutionType = pick(Object.keys(tonicResolutions));
+    const resolutionType = pick(chordResolutionMap[dominantType]);
 
     currentAnswer = { dominantType, resolutionType };
     currentPlay = () => playDominantResolution(currentTonicRoot, dominantType, resolutionType);
 
     setUI(dominantOptions);
     questionEl.textContent = "Identify the dominant seventh inversion.";
-    setStatus(`${profile.label} selected. Press Play to hear the dominant chord move to tonic.`);
+    setStatus(`${profile.label} selected. Press Play to hear the dominant chord move to tonic in the same scale.`);
   } else {
     mode = "scale";
 
@@ -820,7 +966,7 @@ function handleAnswer(value, button) {
         const points = awardPoints();
         mark(button, true);
         step = 1;
-        setUI(Object.keys(tonicResolutions));
+        setUI(chordResolutionMap[currentAnswer.dominantType]);
         questionEl.textContent = "Identify the tonic resolution.";
         setStatus(`Nice. +${points} points. Now choose the quality and inversion of the resolution.`, "success");
       } else {
