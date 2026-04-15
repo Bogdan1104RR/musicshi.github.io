@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ear Training</title>
+
+<script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #081018;
+  --panel: rgba(7, 17, 28, 0.78);
+  --panel-border: rgba(151, 196, 255, 0.18);
+  --text: #f3f7fb;
+  --muted: #9cb2c8;
+  --accent: #ffb84d;
+  --accent-2: #67d6c1;
+  --correct: #6ce58b;
+  --wrong: #ff7c6a;
+  --button: rgba(14, 26, 41, 0.86);
+  --button-hover: rgba(25, 44, 67, 0.96);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top, rgba(103, 214, 193, 0.16), transparent 32%),
+    radial-gradient(circle at bottom right, rgba(255, 184, 77, 0.16), transparent 24%),
+    linear-gradient(160deg, #04090f 0%, #09111c 48%, #081018 100%);
+}
+
+.app {
+  width: min(760px, 100%);
+  padding: 32px 24px;
+  border: 1px solid var(--panel-border);
+  border-radius: 24px;
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3rem);
+  letter-spacing: 0.04em;
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.panel {
+  margin-top: 24px;
+  padding: 18px;
+  border-radius: 18px;
+  background: rgba(8, 18, 29, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.scoreboard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.scoreboard-head h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.scoreboard-head p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.score-card {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(12, 25, 39, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.score-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.score-value {
+  display: block;
+  margin-top: 8px;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.secondary-button {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.setup {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.setup-copy {
+  flex: 1 1 260px;
+}
+
+.setup-copy h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.setup-copy p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.level-picker {
+  flex: 0 1 250px;
+  display: grid;
+  gap: 8px;
+}
+
+.level-picker label {
+  font-size: 0.86rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.level-picker select {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(14, 26, 41, 0.94);
+  color: var(--text);
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 0.98rem;
+}
+
+#question {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+#status {
+  margin-top: 8px;
+  color: var(--muted);
+  min-height: 1.4em;
+}
+
+#status.success {
+  color: var(--correct);
+}
+
+#status.error {
+  color: var(--wrong);
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+button {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--button);
+  color: var(--text);
+  padding: 12px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.98rem;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--button-hover);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+button.correct {
+  background: var(--correct) !important;
+  color: #04140a;
+}
+
+button.wrong {
+  background: var(--wrong) !important;
+  color: #240704;
+}
+
+#answers {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.hint {
+  margin-top: 24px;
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 560px) {
+  .app {
+    padding: 24px 16px;
+    border-radius: 18px;
+  }
+
+  .score-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  button {
+    width: 100%;
+  }
+
+  .controls,
+  #answers {
+    flex-direction: column;
+  }
+}
+</style>
+</head>
+
+<body>
+<main class="app">
+  <h1>Ear Training</h1>
+  <p class="subtitle">Practice interval movement, dominant resolution, and modal scale recognition.</p>
+
+  <section class="panel setup">
+    <div class="setup-copy">
+      <h2>Choose your level</h2>
+      <p>Higher levels tighten the timing between notes, so the same questions become harder to identify by ear.</p>
+    </div>
+
+    <div class="level-picker">
+      <label for="levelSelect">Starting level</label>
+      <select id="levelSelect" onchange="updateLevelStatus()">
+        <option value="1">Level 1 - Slow</option>
+        <option value="2">Level 2 - Relaxed</option>
+        <option value="3" selected>Level 3 - Normal</option>
+        <option value="4">Level 4 - Fast</option>
+        <option value="5">Level 5 - Very Fast</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="scoreboard-head">
+      <div>
+        <h2>Progress</h2>
+        <p id="scoreMeta">Saved in this browser so returning users keep their best run.</p>
+      </div>
+
+      <button class="secondary-button" type="button" onclick="resetProgress()">Reset Stats</button>
+    </div>
+
+    <div class="score-grid">
+      <div class="score-card">
+        <span class="score-label">Score</span>
+        <strong class="score-value" id="scoreValue">0</strong>
+      </div>
+      <div class="score-card">
+        <span class="score-label">Streak</span>
+        <strong class="score-value" id="streakValue">0</strong>
+      </div>
+      <div class="score-card">
+        <span class="score-label">Best Streak</span>
+        <strong class="score-value" id="bestStreakValue">0</strong>
+      </div>
+      <div class="score-card">
+        <span class="score-label">Best Score</span>
+        <strong class="score-value" id="bestScoreValue">0</strong>
+      </div>
+      <div class="score-card">
+        <span class="score-label">Solved</span>
+        <strong class="score-value" id="solvedValue">0</strong>
+      </div>
+      <div class="score-card">
+        <span class="score-label">Accuracy</span>
+        <strong class="score-value" id="accuracyValue">0%</strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div id="question" aria-live="polite">Press New Question to begin.</div>
+    <div id="status" aria-live="polite">The first playback may take a moment while piano samples load.</div>
+  </section>
+
+  <div class="controls">
+    <button id="newQuestionBtn" type="button" onclick="newQuestion()">New Question</button>
+    <button id="playBtn" type="button" onclick="playCurrent()" disabled>Play</button>
+  </div>
+
+  <div id="answers"></div>
+
+  <p class="hint">For interval and dominant questions, answer the first sound first. After a correct answer, the app will ask for the resolution.</p>
+</main>
+
+<script>
+const piano = new Tone.Sampler({
+  urls: {
+    "A0": "A0.mp3",
+    "C1": "C1.mp3",
+    "D#1": "Ds1.mp3",
+    "F#1": "Fs1.mp3",
+    "A1": "A1.mp3",
+    "C2": "C2.mp3",
+    "D#2": "Ds2.mp3",
+    "F#2": "Fs2.mp3",
+    "A2": "A2.mp3",
+    "C3": "C3.mp3",
+    "D#3": "Ds3.mp3",
+    "F#3": "Fs3.mp3",
+    "A3": "A3.mp3",
+    "C4": "C4.mp3",
+    "D#4": "Ds4.mp3",
+    "F#4": "Fs4.mp3",
+    "A4": "A4.mp3",
+    "C5": "C5.mp3",
+    "D#5": "Ds5.mp3",
+    "F#5": "Fs5.mp3",
+    "A5": "A5.mp3",
+    "C6": "C6.mp3",
+    "D#6": "Ds6.mp3",
+    "F#6": "Fs6.mp3",
+    "A6": "A6.mp3",
+    "C7": "C7.mp3",
+    "C8": "C8.mp3"
+  },
+  release: 1.2,
+  baseUrl: "https://tonejs.github.io/audio/salamander/"
+}).toDestination();
+
+const questionEl = document.getElementById("question");
+const statusEl = document.getElementById("status");
+const answersEl = document.getElementById("answers");
+const playBtn = document.getElementById("playBtn");
+const levelSelect = document.getElementById("levelSelect");
+const scoreValueEl = document.getElementById("scoreValue");
+const streakValueEl = document.getElementById("streakValue");
+const bestStreakValueEl = document.getElementById("bestStreakValue");
+const bestScoreValueEl = document.getElementById("bestScoreValue");
+const solvedValueEl = document.getElementById("solvedValue");
+const accuracyValueEl = document.getElementById("accuracyValue");
+const scoreMetaEl = document.getElementById("scoreMeta");
+
+const intervalSemitones = {
+  "4+": 6,
+  "5-": 6,
+  "3M": 4,
+  "3m": 3,
+  "6M": 9,
+  "6m": 8
+};
+
+const intervalQuestionOptions = ["4+", "5-"];
+const intervalResolutionMap = {
+  "4+": ["6m", "6M"],
+  "5-": ["3m", "3M"]
+};
+
+const scales = {
+  major: [0, 2, 4, 5, 7, 9, 11, 12],
+  minor: [0, 2, 3, 5, 7, 8, 10, 12],
+  "harmonic minor": [0, 2, 3, 5, 7, 8, 11, 12],
+  "melodic minor": [0, 2, 3, 5, 7, 9, 11, 12],
+  "harmonic major": [0, 2, 4, 5, 7, 8, 11, 12],
+  "melodic major": [0, 2, 4, 5, 7, 8, 10, 12],
+  lydian: [0, 2, 4, 6, 7, 9, 11, 12],
+  mixolydian: [0, 2, 4, 5, 7, 9, 10, 12],
+  dorian: [0, 2, 3, 5, 7, 9, 10, 12],
+  phrygian: [0, 1, 3, 5, 7, 8, 10, 12],
+  hypophrygic: [0, 1, 4, 5, 6, 9, 11, 12]
+};
+
+const dominantSeventhShapes = {
+  D7: [7, 11, 14, 17],
+  D65: [11, 14, 17, 19],
+  D43: [2, 5, 7, 11],
+  D2: [5, 7, 11, 14]
+};
+
+const tonicResolutions = {
+  T: [0, 4, 7],
+  t: [0, 3, 7],
+  T6: [4, 7, 12],
+  t6: [3, 7, 12]
+};
+
+const tonicRoots = [48, 50, 52, 53, 55, 57, 59, 60];
+const SCORE_STORAGE_KEY = "ear-training-progress-v1";
+const levelProfiles = {
+  1: {
+    label: "Level 1",
+    speedText: "slow",
+    noteDuration: 1.2,
+    scaleGap: 0.38,
+    phraseGap: 0.82,
+    intervalGap: 0.78,
+    chordDuration: 1.3,
+    chordGap: 0.88
+  },
+  2: {
+    label: "Level 2",
+    speedText: "relaxed",
+    noteDuration: 1.05,
+    scaleGap: 0.32,
+    phraseGap: 0.68,
+    intervalGap: 0.67,
+    chordDuration: 1.18,
+    chordGap: 0.76
+  },
+  3: {
+    label: "Level 3",
+    speedText: "normal",
+    noteDuration: 0.9,
+    scaleGap: 0.26,
+    phraseGap: 0.55,
+    intervalGap: 0.55,
+    chordDuration: 1.05,
+    chordGap: 0.64
+  },
+  4: {
+    label: "Level 4",
+    speedText: "fast",
+    noteDuration: 0.76,
+    scaleGap: 0.22,
+    phraseGap: 0.42,
+    intervalGap: 0.46,
+    chordDuration: 0.92,
+    chordGap: 0.54
+  },
+  5: {
+    label: "Level 5",
+    speedText: "very fast",
+    noteDuration: 0.62,
+    scaleGap: 0.18,
+    phraseGap: 0.32,
+    intervalGap: 0.38,
+    chordDuration: 0.8,
+    chordGap: 0.44
+  }
+};
+
+let currentAnswer = null;
+let currentPlay = null;
+let currentTonicRoot = 60;
+let mode = null;
+let step = 0;
+let isPlaying = false;
+let storageEnabled = true;
+let progress = loadProgress();
+
+function pick(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function createDefaultProgress() {
+  return {
+    score: 0,
+    streak: 0,
+    bestStreak: 0,
+    bestScore: 0,
+    solvedQuestions: 0,
+    correctAnswers: 0,
+    wrongAnswers: 0
+  };
+}
+
+function loadProgress() {
+  const fallback = createDefaultProgress();
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(SCORE_STORAGE_KEY));
+    if (!saved) {
+      return fallback;
+    }
+
+    return {
+      score: Number(saved.score) || 0,
+      streak: Number(saved.streak) || 0,
+      bestStreak: Number(saved.bestStreak) || 0,
+      bestScore: Number(saved.bestScore) || 0,
+      solvedQuestions: Number(saved.solvedQuestions) || 0,
+      correctAnswers: Number(saved.correctAnswers) || 0,
+      wrongAnswers: Number(saved.wrongAnswers) || 0
+    };
+  } catch (error) {
+    storageEnabled = false;
+    return fallback;
+  }
+}
+
+function saveProgress() {
+  if (!storageEnabled) {
+    return;
+  }
+
+  try {
+    localStorage.setItem(SCORE_STORAGE_KEY, JSON.stringify(progress));
+  } catch (error) {
+    storageEnabled = false;
+  }
+}
+
+function getAccuracyText() {
+  const attempts = progress.correctAnswers + progress.wrongAnswers;
+  if (!attempts) {
+    return "0%";
+  }
+
+  return `${Math.round((progress.correctAnswers / attempts) * 100)}%`;
+}
+
+function updateScoreboard() {
+  scoreValueEl.textContent = progress.score;
+  streakValueEl.textContent = progress.streak;
+  bestStreakValueEl.textContent = progress.bestStreak;
+  bestScoreValueEl.textContent = progress.bestScore;
+  solvedValueEl.textContent = progress.solvedQuestions;
+  accuracyValueEl.textContent = getAccuracyText();
+  scoreMetaEl.textContent = storageEnabled
+    ? "Saved in this browser so returning users keep their best run."
+    : "Progress is only available for this session in this browser.";
+}
+
+function awardPoints({ completedQuestion = false } = {}) {
+  progress.correctAnswers += 1;
+  progress.streak += 1;
+
+  if (completedQuestion) {
+    progress.solvedQuestions += 1;
+  }
+
+  const points = 10 + getSelectedLevel() * 3 + Math.min(progress.streak, 5) + (completedQuestion ? 8 : 0);
+  progress.score += points;
+  progress.bestStreak = Math.max(progress.bestStreak, progress.streak);
+  progress.bestScore = Math.max(progress.bestScore, progress.score);
+  saveProgress();
+  updateScoreboard();
+  return points;
+}
+
+function applyPenalty() {
+  const penalty = 2 + Math.floor(getSelectedLevel() / 2);
+  progress.wrongAnswers += 1;
+  progress.streak = 0;
+  progress.score = Math.max(0, progress.score - penalty);
+  saveProgress();
+  updateScoreboard();
+  return penalty;
+}
+
+function resetProgress() {
+  progress = createDefaultProgress();
+  saveProgress();
+  updateScoreboard();
+  setStatus("Progress reset. Choose a level and start a new question.");
+}
+
+function midiToNote(midi) {
+  const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const octave = Math.floor(midi / 12) - 1;
+  return notes[midi % 12] + octave;
+}
+
+function setStatus(message, tone = "") {
+  statusEl.textContent = message;
+  statusEl.className = tone;
+}
+
+function getSelectedLevel() {
+  return Number(levelSelect.value);
+}
+
+function getPlaybackProfile() {
+  return levelProfiles[getSelectedLevel()];
+}
+
+function updateLevelStatus() {
+  const profile = getPlaybackProfile();
+  if (!currentPlay) {
+    setStatus(`${profile.label} selected. Notes will play at a ${profile.speedText} pace.`);
+  }
+}
+
+function playNotes(notes, start, duration = 1) {
+  notes.forEach((midi) => {
+    piano.triggerAttackRelease(midiToNote(midi), duration, start);
+  });
+}
+
+function playScale(root, pattern) {
+  const profile = getPlaybackProfile();
+  const start = Tone.now() + 0.05;
+  const gap = profile.scaleGap;
+
+  pattern.forEach((offset, index) => {
+    piano.triggerAttackRelease(midiToNote(root + offset), profile.noteDuration, start + index * gap);
+  });
+
+  const descendStart = start + pattern.length * gap + profile.phraseGap;
+  pattern
+    .slice()
+    .reverse()
+    .forEach((offset, index) => {
+      piano.triggerAttackRelease(midiToNote(root + offset), profile.noteDuration, descendStart + index * gap);
+    });
+
+  return descendStart + pattern.length * gap + profile.noteDuration - Tone.now();
+}
+
+function playIntervalSequence(root, intervalType, resolutionType) {
+  const profile = getPlaybackProfile();
+  const start = Tone.now() + 0.05;
+  const resolutionStart = start + profile.noteDuration + profile.phraseGap;
+
+  playNotes([root, root + intervalSemitones[intervalType]], start, profile.noteDuration);
+  playNotes([root, root + intervalSemitones[resolutionType]], resolutionStart, profile.noteDuration);
+
+  return resolutionStart + profile.noteDuration - Tone.now();
+}
+
+function playDominantResolution(root, dominantType, resolutionType) {
+  const profile = getPlaybackProfile();
+  const start = Tone.now() + 0.05;
+  const resolutionStart = start + profile.chordDuration + profile.chordGap;
+
+  playNotes(dominantSeventhShapes[dominantType].map((offset) => root + offset), start, profile.chordDuration);
+  playNotes(tonicResolutions[resolutionType].map((offset) => root + offset), resolutionStart, profile.chordDuration);
+
+  return resolutionStart + profile.chordDuration - Tone.now();
+}
+
+async function ensureAudioReady() {
+  if (Tone.context.state !== "running") {
+    await Tone.start();
+  }
+  await Tone.loaded();
+}
+
+function setUI(options) {
+  answersEl.innerHTML = "";
+
+  options.forEach((option) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = option;
+    button.addEventListener("click", () => handleAnswer(option, button));
+    answersEl.appendChild(button);
+  });
+}
+
+function resetAnswerButtons() {
+  answersEl.querySelectorAll("button").forEach((button) => {
+    button.classList.remove("correct", "wrong");
+  });
+}
+
+function mark(button, ok) {
+  button.classList.remove("correct", "wrong");
+  button.classList.add(ok ? "correct" : "wrong");
+}
+
+function newQuestion() {
+  resetAnswerButtons();
+  step = 0;
+  currentTonicRoot = pick(tonicRoots);
+  const profile = getPlaybackProfile();
+
+  const roll = Math.random();
+
+  if (roll < 0.33) {
+    mode = "interval";
+
+    const intervalType = pick(intervalQuestionOptions);
+    const resolutionType = pick(intervalResolutionMap[intervalType]);
+
+    currentAnswer = { intervalType, resolutionType };
+    currentPlay = () => playIntervalSequence(currentTonicRoot, intervalType, resolutionType);
+
+    setUI(intervalQuestionOptions);
+    questionEl.textContent = "Identify the opening interval.";
+    setStatus(`${profile.label} selected. Press Play to hear the interval chord, then its resolution chord.`);
+  } else if (roll < 0.66) {
+    mode = "chord";
+
+    const dominantOptions = Object.keys(dominantSeventhShapes);
+    const dominantType = pick(dominantOptions);
+    const resolutionType = pick(Object.keys(tonicResolutions));
+
+    currentAnswer = { dominantType, resolutionType };
+    currentPlay = () => playDominantResolution(currentTonicRoot, dominantType, resolutionType);
+
+    setUI(dominantOptions);
+    questionEl.textContent = "Identify the dominant seventh inversion.";
+    setStatus(`${profile.label} selected. Press Play to hear the dominant chord move to tonic.`);
+  } else {
+    mode = "scale";
+
+    const scaleNames = Object.keys(scales);
+    const scaleName = pick(scaleNames);
+
+    currentAnswer = scaleName;
+    currentPlay = () => playScale(currentTonicRoot, scales[scaleName]);
+
+    setUI(scaleNames);
+    questionEl.textContent = "Identify the scale type.";
+    setStatus(`${profile.label} selected. Press Play to hear the scale ascend and descend.`);
+  }
+
+  playBtn.disabled = false;
+}
+
+async function playCurrent() {
+  if (!currentPlay || isPlaying) {
+    return;
+  }
+
+  try {
+    isPlaying = true;
+    playBtn.disabled = true;
+    setStatus("Preparing audio...");
+    await ensureAudioReady();
+    setStatus("Listening...");
+
+    const duration = currentPlay();
+    window.setTimeout(() => {
+      isPlaying = false;
+      playBtn.disabled = false;
+    }, Math.max(duration * 1000, 1200));
+  } catch (error) {
+    isPlaying = false;
+    playBtn.disabled = false;
+    setStatus("Audio could not start. Check that your browser allows sound.", "error");
+    console.error(error);
+  }
+}
+
+function handleAnswer(value, button) {
+  if (mode === "interval") {
+    if (step === 0) {
+      if (value === currentAnswer.intervalType) {
+        const points = awardPoints();
+        mark(button, true);
+        step = 1;
+        setUI(intervalResolutionMap[currentAnswer.intervalType]);
+        questionEl.textContent = "Identify the resolution interval.";
+        setStatus(`Nice. +${points} points. Now choose the second interval you heard.`, "success");
+      } else {
+        const penalty = applyPenalty();
+        mark(button, false);
+        setStatus(`Not quite. -${penalty} points. Replay it and compare the opening interval.`, "error");
+      }
+      return;
+    }
+
+    const ok = value === currentAnswer.resolutionType;
+    mark(button, ok);
+    const points = ok ? awardPoints({ completedQuestion: true }) : 0;
+    const penalty = ok ? 0 : applyPenalty();
+    setStatus(
+      ok
+        ? `Correct. +${points} points. Generate another question when you're ready.`
+        : `Close. -${penalty} points. Replay it and focus on the resolution.`,
+      ok ? "success" : "error"
+    );
+    return;
+  }
+
+  if (mode === "chord") {
+    if (step === 0) {
+      if (value === currentAnswer.dominantType) {
+        const points = awardPoints();
+        mark(button, true);
+        step = 1;
+        setUI(Object.keys(tonicResolutions));
+        questionEl.textContent = "Identify the tonic resolution.";
+        setStatus(`Nice. +${points} points. Now choose the quality and inversion of the resolution.`, "success");
+      } else {
+        const penalty = applyPenalty();
+        mark(button, false);
+        setStatus(`That inversion does not match. -${penalty} points. Replay it and listen to the bass.`, "error");
+      }
+      return;
+    }
+
+    const ok = value === currentAnswer.resolutionType;
+    mark(button, ok);
+    const points = ok ? awardPoints({ completedQuestion: true }) : 0;
+    const penalty = ok ? 0 : applyPenalty();
+    setStatus(
+      ok
+        ? `Correct. +${points} points. Generate another question when you're ready.`
+        : `Not this resolution. -${penalty} points. Replay it and compare the bass note.`,
+      ok ? "success" : "error"
+    );
+    return;
+  }
+
+  const ok = value === currentAnswer;
+  mark(button, ok);
+  const points = ok ? awardPoints({ completedQuestion: true }) : 0;
+  const penalty = ok ? 0 : applyPenalty();
+  setStatus(
+    ok
+      ? `Correct. +${points} points. Generate another question when you're ready.`
+      : `Not that scale. -${penalty} points. Replay it and listen for the characteristic color.`,
+    ok ? "success" : "error"
+  );
+}
+
+updateScoreboard();
+updateLevelStatus();
+</script>
+</body>
+</html>
